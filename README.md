@@ -6,6 +6,7 @@
 
 **Ses cihazdan çıkmadan. Bulut API'sine yüklenmeden. İnternet gerekmeden.**
 
+[![CI](https://github.com/ahaygun/meeting-to-mail/actions/workflows/ci.yml/badge.svg)](https://github.com/ahaygun/meeting-to-mail/actions/workflows/ci.yml)
 ![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)
 ![Vue 3](https://img.shields.io/badge/Vue_3-42b883?logo=vuedotjs&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)

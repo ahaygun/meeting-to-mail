@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { api } from '../lib/api'
+import { parseRecipients } from '../lib/emails'
 import { t } from '../i18n'
 
 // v-model: seçili e-posta dizisi.
@@ -85,23 +86,8 @@ function clearAll() {
   commit()
 }
 
-// "Ad <email>" veya düz e-posta — çokluyu böler.
-function parseEntries(text) {
-  return text
-    .split(/[\n,;]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const m = part.match(/^(.*?)[<(]\s*([^>)\s]+@[^>)\s]+)\s*[>)]$/)
-      if (m) return { name: m[1].trim(), email: m[2].trim() }
-      const em = part.match(/([^\s,;]+@[^\s,;]+)/)
-      return em ? { name: '', email: em[1].trim() } : null
-    })
-    .filter(Boolean)
-}
-
 async function add() {
-  const entries = parseEntries(newEmail.value)
+  const entries = parseRecipients(newEmail.value)
   if (entries.length === 0) {
     error.value = t('rp.err.validEmail')
     return

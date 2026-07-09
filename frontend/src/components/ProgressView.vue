@@ -1,20 +1,12 @@
 <script setup>
 import { computed } from 'vue'
 import { useSessionStore, Phase } from '../stores/session'
+import { t } from '../i18n'
 
 const store = useSessionStore()
 
-// Boru hattı adımları — mevcut duruma göre işaretlenir.
-const steps = [
-  { key: 'processing', label: 'Ses birleştiriliyor' },
-  { key: 'transcribing', label: 'Metne dökülüyor (ASR)' },
-  { key: 'summarizing', label: 'Özet çıkarılıyor (LLM)' },
-  { key: 'pending_send', label: 'Gönderim bekliyor' },
-  { key: 'sending', label: 'E-posta gönderiliyor' },
-  { key: 'sent', label: 'Gönderildi' },
-]
-
 const order = ['processing', 'transcribing', 'summarizing', 'pending_send', 'sending', 'sent']
+const steps = order.map((key) => ({ key }))
 const currentIdx = computed(() => order.indexOf(store.status))
 
 function stateFor(key) {
@@ -28,42 +20,55 @@ const isFailed = computed(() => store.phase === Phase.Failed)
 </script>
 
 <template>
-  <div class="pt-4">
-    <h2 class="text-lg font-semibold mb-1">İşleniyor</h2>
-    <p class="text-sm text-slate-400 mb-6">{{ store.title }}</p>
+  <div class="rise">
+    <div class="label mb-1.5">{{ t('prog.processingLocal') }}</div>
+    <h2 class="serif-title text-[1.7rem] mb-7">{{ store.title }}</h2>
 
-    <div v-if="isFailed" class="rounded-lg border border-red-500/40 bg-red-500/10 p-4">
-      <div class="font-medium text-red-300">Bir hata oluştu</div>
-      <p class="text-sm text-red-200/80 mt-1">{{ store.error }}</p>
+    <div v-if="isFailed" class="panel p-5" style="border-color: var(--danger)">
+      <div class="font-semibold" style="color: var(--danger)">{{ t('prog.error') }}</div>
+      <p class="text-sm mt-1" style="color: var(--ink-2)">{{ store.error }}</p>
     </div>
 
-    <ol v-else class="space-y-3">
-      <li v-for="s in steps" :key="s.key" class="flex items-center gap-3">
+    <ol v-else class="relative">
+      <li v-for="(s, i) in steps" :key="s.key" class="flex gap-4 pb-6 last:pb-0 relative">
+        <!-- bağlantı çizgisi -->
         <span
-          class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs"
-          :class="{
-            'bg-emerald-500 text-slate-900': stateFor(s.key) === 'done',
-            'bg-indigo-500 text-white': stateFor(s.key) === 'active',
-            'bg-slate-800 text-slate-500 border border-slate-700': stateFor(s.key) === 'todo',
+          v-if="i < steps.length - 1"
+          class="absolute left-[13px] top-7 bottom-0 w-px"
+          :style="`background:${stateFor(s.key) === 'done' ? 'var(--sent)' : 'var(--line-2)'}`"
+        ></span>
+
+        <!-- düğüm -->
+        <span
+          class="relative z-10 shrink-0 flex items-center justify-center rounded-full font-mono"
+          style="width: 27px; height: 27px; font-size: 11px"
+          :style="{
+            background: stateFor(s.key) === 'done' ? 'var(--sent)' : stateFor(s.key) === 'active' ? 'var(--signal)' : 'var(--paper-2)',
+            color: stateFor(s.key) === 'todo' ? 'var(--ink-3)' : '#fff',
+            border: stateFor(s.key) === 'todo' ? '1px solid var(--line-2)' : 'none',
           }"
         >
           <span v-if="stateFor(s.key) === 'done'">✓</span>
-          <span v-else-if="stateFor(s.key) === 'active'" class="h-2.5 w-2.5 rounded-full bg-white animate-pulse"></span>
-          <span v-else>○</span>
+          <span v-else-if="stateFor(s.key) === 'active'" class="rounded-full" style="width: 9px; height: 9px; background: #fff; animation: blink 1s infinite"></span>
+          <span v-else>{{ String(i + 1).padStart(2, '0') }}</span>
         </span>
-        <span
-          class="text-sm"
-          :class="{
-            'text-slate-200': stateFor(s.key) !== 'todo',
-            'text-slate-500': stateFor(s.key) === 'todo',
-            'font-medium': stateFor(s.key) === 'active',
-          }"
-          >{{ s.label }}</span
-        >
+
+        <!-- etiket -->
+        <div class="pt-0.5">
+          <div
+            class="text-[15px]"
+            :style="{
+              color: stateFor(s.key) === 'todo' ? 'var(--ink-3)' : 'var(--ink)',
+              fontWeight: stateFor(s.key) === 'active' ? 600 : 500,
+            }"
+          >{{ t('prog.step.' + s.key + '.label') }}</div>
+          <div class="label mt-0.5">{{ t('prog.step.' + s.key + '.hint') }}</div>
+        </div>
       </li>
     </ol>
 
-    <p v-if="!isFailed && store.progressMessage" class="mt-6 text-sm text-slate-400">
+    <p v-if="!isFailed && store.progressMessage" class="mt-6 text-sm flex items-center gap-2" style="color: var(--ink-2)">
+      <span class="inline-block rounded-full" style="width: 12px; height: 12px; border: 2px solid var(--signal-soft); border-top-color: var(--signal); animation: spin 0.7s linear infinite"></span>
       {{ store.progressMessage }}
     </p>
   </div>

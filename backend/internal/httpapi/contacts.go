@@ -48,6 +48,25 @@ func (s *Server) createContact(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]string{"email": req.Email})
 }
 
+// updateContact, bir kişinin adını günceller.
+func (s *Server) updateContact(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "cid"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "geçersiz id")
+		return
+	}
+	var req contactReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "geçersiz JSON")
+		return
+	}
+	if err := s.st.UpdateContact(r.Context(), id, strings.TrimSpace(req.Name)); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"name": req.Name})
+}
+
 // deleteContact, bir kişiyi rehberden siler.
 func (s *Server) deleteContact(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "cid"), 10, 64)

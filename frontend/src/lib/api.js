@@ -49,8 +49,33 @@ export const api = {
     })
   },
 
+  updateContact(id, name) {
+    return req(`/api/contacts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+  },
+
   deleteContact(id) {
     return req(`/api/contacts/${id}`, { method: 'DELETE' })
+  },
+
+  // --- Gruplar (dağıtım listeleri) ---
+  listGroups() {
+    return req('/api/groups')
+  },
+
+  createGroup(name, emails) {
+    return req('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, emails }),
+    })
+  },
+
+  deleteGroup(id) {
+    return req(`/api/groups/${id}`, { method: 'DELETE' })
   },
 
   getSession(id) {

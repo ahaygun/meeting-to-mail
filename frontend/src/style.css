@@ -1,7 +1,79 @@
 @import "tailwindcss";
 
+/* ============================================================
+   meeting-to-mail — "Editorial Dispatch"
+   Açık, pastel, okunaklı · yüksek karakterli serif + teknik mono
+   · sıcak kil (terracotta) vurgu. Karanlık mod opsiyonel (toggle).
+   ============================================================ */
+
 :root {
+  /* Açık tema (varsayılan) */
+  --paper: #faf7f1;      /* sıcak fildişi zemin */
+  --paper-2: #ffffff;    /* panel / kart */
+  --paper-3: #f3efe6;    /* girinti (alan zemini) */
+  --ink: #2a251f;        /* sıcak, koyu metin */
+  --ink-2: #6b6357;      /* ikincil */
+  --ink-3: #9b9283;      /* soluk / etiket */
+  --line: rgba(42, 37, 31, 0.1);
+  --line-2: rgba(42, 37, 31, 0.16);
+
+  --signal: #d6774f;     /* marka vurgusu — sıcak kil / terracotta */
+  --signal-ink: #ffffff;
+  --signal-soft: rgba(214, 119, 79, 0.13);
+  --live: #df4a33;       /* kayıt / canlı */
+  --sent: #5c9873;       /* gönderildi / başarı */
+  --danger: #cf564e;     /* hata */
+
+  /* pastel tonlar (bölüm/rozet vurguları) */
+  --pastel-peach: #f6e5da;
+  --pastel-sage: #e6efe5;
+  --pastel-sky: #e2ecf2;
+  --pastel-butter: #f7ecd4;
+
+  --shadow-sm: 0 1px 2px rgba(42, 37, 31, 0.05);
+  --shadow: 0 2px 4px rgba(42, 37, 31, 0.04), 0 12px 28px -16px rgba(42, 37, 31, 0.22);
+  --grain-blend: multiply;
+  --grain-opacity: 0.28;
+
+  --display: "Bricolage Grotesque", "Hanken Grotesk", sans-serif;
+  --sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --paper: #14110e;
+  --paper-2: #1b1712;
+  --paper-3: #221d16;
+  --ink: #ece5d7;
+  --ink-2: #b6ac98;
+  --ink-3: #837a67;
+  --line: rgba(236, 229, 215, 0.11);
+  --line-2: rgba(236, 229, 215, 0.2);
+
+  --signal: #e9a23b;
+  --signal-ink: #1a1408;
+  --signal-soft: rgba(233, 162, 59, 0.14);
+  --live: #ff5a45;
+  --sent: #86ab8c;
+  --danger: #e5686b;
+
+  --pastel-peach: rgba(233, 162, 59, 0.1);
+  --pastel-sage: rgba(134, 171, 140, 0.1);
+  --pastel-sky: rgba(120, 150, 190, 0.1);
+  --pastel-butter: rgba(233, 200, 120, 0.08);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow: 0 8px 30px -14px rgba(0, 0, 0, 0.6);
+  --grain-blend: overlay;
+  --grain-opacity: 0.5;
+
   color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 html,
@@ -12,8 +84,303 @@ body,
 
 body {
   margin: 0;
-  background: #0f172a;
-  color: #e2e8f0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  background-image:
+    radial-gradient(120% 80% at 50% -10%, var(--pastel-peach), transparent 55%),
+    radial-gradient(90% 55% at 100% 0%, var(--pastel-sky), transparent 55%);
+  background-attachment: fixed;
+}
+
+/* İnce gren dokusu — derinlik için */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: var(--grain-blend);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+}
+
+::selection {
+  background: var(--signal);
+  color: var(--signal-ink);
+}
+
+/* --- Tipografi --- */
+.font-mono { font-family: var(--mono); }
+
+.label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Kalın, okunaklı başlık fontu (grotesk) */
+.serif-title {
+  font-family: var(--display);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+/* --- Hairline --- */
+.rule {
+  height: 1px;
+  background: var(--line);
+  border: 0;
+}
+
+/* --- Panel / kart --- */
+.panel {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* --- Alan --- */
+.field {
+  width: 100%;
+  background: var(--paper-3);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  font-family: var(--sans);
+  font-size: 14.5px;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.field::placeholder { color: var(--ink-3); }
+.field:focus {
+  outline: none;
+  border-color: var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-soft);
+  background: var(--paper-2);
+}
+
+/* --- Butonlar --- */
+.btn {
+  font-family: var(--sans);
+  font-weight: 600;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
+}
+.btn:active { transform: translateY(1px) scale(0.995); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-signal {
+  background: var(--signal);
+  color: var(--signal-ink);
+  box-shadow: 0 6px 20px -10px var(--signal);
+}
+.btn-signal:hover:not(:disabled) { filter: brightness(1.05); }
+
+.btn-live {
+  background: var(--live);
+  color: #fff;
+  box-shadow: 0 6px 22px -10px var(--live);
+}
+.btn-live:hover:not(:disabled) { filter: brightness(1.05); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-2);
+  border-color: var(--line-2);
+}
+.btn-ghost:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink-3);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+/* --- Chip --- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.7rem 0.42rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--paper-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chip:hover { border-color: var(--ink-3); color: var(--ink); }
+.chip[data-on="true"] {
+  border-color: var(--signal);
+  background: var(--signal-soft);
+  color: var(--ink);
+}
+
+/* --- Seçim kutusu --- */
+.select-card {
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s;
+}
+.select-card:hover { border-color: var(--ink-3); }
+.select-card[data-on="true"] {
+  border-color: var(--signal);
+  background: var(--signal-soft);
+  box-shadow: inset 0 0 0 1px var(--signal-soft);
+}
+
+/* --- Tema toggle --- */
+.theme-toggle {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--paper-2);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* --- Modal --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  animation: fade 0.18s ease;
+}
+@media (min-width: 640px) {
+  .modal-overlay { align-items: center; padding: 1.25rem; }
+}
+.modal-card {
+  width: 100%;
+  max-width: 30rem;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--line-2);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -20px 60px -20px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: sheet 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (min-width: 640px) {
+  .modal-card { border-radius: 20px; box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.45); animation: pop 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
+}
+
+/* Kişi satırı (onay kutulu) */
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 0.35rem;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.contact-row:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.contact-row input[type="checkbox"] {
+  width: 19px;
+  height: 19px;
+  accent-color: var(--signal);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* İkon buton (düzenle / sil) */
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+  border: 1px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.13s;
+}
+.icon-btn:hover { background: var(--paper-3); color: var(--ink); border-color: var(--line-2); }
+.icon-btn.danger:hover { color: var(--danger); }
+
+/* Grup rozeti (modal) */
+.group-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.55rem 0.5rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: var(--paper-2);
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.group-pill:hover { border-color: var(--signal); background: var(--signal-soft); }
+
+@keyframes sheet {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* --- Animasyonlar --- */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes ring-pulse {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.75); opacity: 0; }
+}
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

@@ -22,6 +22,129 @@ type Summarizer interface {
 	Summarize(ctx context.Context, transcript, style string, participants []string) (domain.SummaryContent, error)
 }
 
+// TranscriptCleaner, özetten ÖNCE transkriptteki bariz ASR (ses tanıma)
+// hatalarını bağlamdan onaran opsiyonel yetenek. Bir Summarizer bunu
+// implemente ederse worker özetten önce çağırır.
+type TranscriptCleaner interface {
+	CleanTranscript(ctx context.Context, transcript string) (string, error)
+}
+
+// genericOwnerPhrases, gerçek bir sahip/isim OLMAYAN, modelin uydurduğu
+// jenerik ifadeler. Bunlar sahip alanından temizlenir.
+var genericOwnerPhrases = []string{
+	"gündemi", "ilgili kişi", "ilgili birim", "birisi", "bir kişi",
+	"sorumlu kişi", "tutacak kişi", "görevli kişi", "yetkili kişi",
+	"atanacak", "belirlenecek", "tüm", "herkes", "ekip", "takım",
+	"n/a", "yok", "belirsiz", "-",
+}
+
+// dueGenericPhrases, gerçek bir tarih OLMAYAN belirsiz ifadeler.
+var dueGenericPhrases = []string{
+	"belirlenecek", "belirsiz", "yakında", "en kısa sürede", "ileride", "n/a", "yok", "-",
+}
+
+// SanitizeSummary, çıktıyı deterministik olarak temizler:
+//   - modelin uydurduğu jenerik owner/due değerlerini boşaltır,
+//   - istenmeyen kelimeleri (ör. "yaratmak") uygun karşılıklarıyla değiştirir.
+//
+// Model talimatı dinlemese bile çalışır.
+func SanitizeSummary(c domain.SummaryContent) domain.SummaryContent {
+	c.Headline = replaceWords(c.Headline)
+	for i := range c.KeyPoints {
+		c.KeyPoints[i] = replaceWords(c.KeyPoints[i])
+	}
+	for i := range c.Decisions {
+		c.Decisions[i] = replaceWords(c.Decisions[i])
+	}
+	for i := range c.ActionItems {
+		c.ActionItems[i].Task = replaceWords(c.ActionItems[i].Task)
+		c.ActionItems[i].Owner = sanitizeField(replaceWords(c.ActionItems[i].Owner), genericOwnerPhrases, 30)
+		c.ActionItems[i].Due = sanitizeField(c.ActionItems[i].Due, dueGenericPhrases, 40)
+	}
+	return c
+}
+
+// replaceWords, dini/kültürel hassasiyet gereği istenmeyen kelimeleri değiştirir.
+// "yaratmak" fiili yerine "oluşturmak" — çekimli hâller dahil (ünlü uyumuna dikkat).
+func replaceWords(s string) string {
+	repl := strings.NewReplacer(
+		"yaratıl", "oluşturul", // pasif: yaratılması → oluşturulması
+		"Yaratıl", "Oluşturul",
+		"yarat", "oluştur", // yaratma → oluşturma, yaratmak → oluşturmak
+		"Yarat", "Oluştur",
+	)
+	return repl.Replace(s)
+}
+
+func sanitizeField(v string, generic []string, maxLen int) string {
+	t := strings.TrimSpace(v)
+	if t == "" {
+		return ""
+	}
+	low := strings.ToLower(t)
+	for _, g := range generic {
+		if strings.Contains(low, g) {
+			return ""
+		}
+	}
+	if len([]rune(t)) > maxLen {
+		return ""
+	}
+	return t
+}
+
+// NewCorrections, "yanlış=>doğru; yanlış2=>doğru2" biçimindeki düzeltme
+// sözlüğünü bir Replacer'a çevirir. Bilinen alan/kurum terimlerinin ASR
+// hatalarını deterministik olarak düzeltmek için (ör. "iyitim=>iyilik").
+func NewCorrections(spec string) *strings.Replacer {
+	var pairs []string
+	for _, part := range strings.Split(spec, ";") {
+		kv := strings.SplitN(part, "=>", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		wrong := strings.TrimSpace(kv[0])
+		right := strings.TrimSpace(kv[1])
+		if wrong == "" {
+			continue
+		}
+		pairs = append(pairs, wrong, right)
+	}
+	if len(pairs) == 0 {
+		return nil
+	}
+	return strings.NewReplacer(pairs...)
+}
+
+// ApplyCorrectionsToSummary, düzeltme sözlüğünü özet metin alanlarına uygular.
+func ApplyCorrectionsToSummary(r *strings.Replacer, c domain.SummaryContent) domain.SummaryContent {
+	if r == nil {
+		return c
+	}
+	c.Headline = r.Replace(c.Headline)
+	for i := range c.KeyPoints {
+		c.KeyPoints[i] = r.Replace(c.KeyPoints[i])
+	}
+	for i := range c.Decisions {
+		c.Decisions[i] = r.Replace(c.Decisions[i])
+	}
+	for i := range c.ActionItems {
+		c.ActionItems[i].Task = r.Replace(c.ActionItems[i].Task)
+		c.ActionItems[i].Owner = r.Replace(c.ActionItems[i].Owner)
+	}
+	return c
+}
+
+// cleanSystemPrompt, transkript düzeltme geçişinin sistem yönergesi (Ollama + Gemini paylaşır).
+const cleanSystemPrompt = "Verilen Türkçe toplantı transkripti otomatik ses tanımayla (ASR) " +
+	"üretildi ve BARİZ HATALAR içerir: yanlış duyulmuş kelimeler, bozuk yazım. " +
+	"Görevin yalnızca bu bariz hataları BAĞLAMDAN düzeltmek.\n" +
+	"KURALLAR:\n" +
+	"- İçerik EKLEME veya ÇIKARMA; anlamı ve konuşma sırasını koru.\n" +
+	"- Cümleleri yeniden yazma, özetleme, yorumlama.\n" +
+	"- Emin olmadığın kelimeye DOKUNMA.\n" +
+	"- Yalnızca düzeltilmiş transkript METNİNİ döndür; açıklama/başlık/madde EKLEME."
+
 // Mailer, özeti alıcılara gönderen servis.
 type Mailer interface {
 	// Send, tek bir alıcıya gönderir; sağlayıcı mesaj ID'si döner.

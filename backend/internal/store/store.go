@@ -53,5 +53,11 @@ type Store interface {
 	// Contacts (kayıtlı alıcılar)
 	ListContacts(ctx context.Context) ([]domain.Contact, error)
 	UpsertContact(ctx context.Context, email, name string) error
+	UpdateContact(ctx context.Context, id int64, name string) error
 	DeleteContact(ctx context.Context, id int64) error
+
+	// Groups (dağıtım listeleri)
+	ListGroups(ctx context.Context) ([]domain.Group, error)
+	CreateGroup(ctx context.Context, name string, emails []string) (*domain.Group, error)
+	DeleteGroup(ctx context.Context, id int64) error
 }

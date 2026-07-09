@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { api } from '../lib/api'
+import { t } from '../i18n'
 
 // Uygulama fazları (UI görünümlerini yönlendirir).
 export const Phase = {
@@ -70,7 +71,7 @@ export const useSessionStore = defineStore('session', {
     async finalize() {
       this.phase = Phase.Processing
       this.status = 'processing'
-      this.progressMessage = 'İşleme başlıyor…'
+      this.progressMessage = t('store.processingStart')
       this.listen()
       await api.finalize(this.id)
     },
@@ -85,10 +86,10 @@ export const useSessionStore = defineStore('session', {
       for (let off = 0; off < file.size; off += CHUNK) {
         const part = file.slice(off, off + CHUNK)
         const pct = Math.min(100, Math.round(((off + part.size) / file.size) * 100))
-        this.progressMessage = `Dosya yükleniyor… %${pct}`
+        this.progressMessage = t('store.uploading', { pct })
         await api.uploadChunk(this.id, seq++, part)
       }
-      this.progressMessage = 'İşleme başlıyor…'
+      this.progressMessage = t('store.processingStart')
       this.listen()
       await api.finalize(this.id)
     },
@@ -106,7 +107,7 @@ export const useSessionStore = defineStore('session', {
 
       if (this.phase === Phase.Done || this.phase === Phase.Cancelled || this.phase === Phase.Failed) {
         await this.loadResults()
-        if (this.phase === Phase.Failed) this.error = sess.error_message || 'Hata'
+        if (this.phase === Phase.Failed) this.error = sess.error_message || t('store.errGeneric')
       } else if (this.phase === Phase.Processing) {
         // Hâlâ işleniyorsa canlı ilerlemeye abone ol.
         this.listen()
@@ -146,7 +147,7 @@ export const useSessionStore = defineStore('session', {
         this.closeStream()
       }
       if (this.phase === Phase.Failed) {
-        this.error = data.message || 'İşleme sırasında hata oluştu.'
+        this.error = data.message || t('store.errProcessing')
         this.closeStream()
       }
     },

@@ -2,6 +2,7 @@
 import { onMounted, onBeforeUnmount, ref } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { useRecorder } from '../composables/useRecorder'
+import { t } from '../i18n'
 
 const store = useSessionStore()
 const rec = useRecorder(() => store.id)
@@ -12,8 +13,7 @@ onMounted(async () => {
   try {
     await rec.start()
   } catch (e) {
-    startError.value =
-      'Mikrofona erişilemedi. Tarayıcı izinlerini kontrol edin. (' + (e.message || e) + ')'
+    startError.value = t('rec.micError', { e: e.message || e })
   }
 })
 
@@ -27,51 +27,66 @@ async function stopAndProcess() {
     await rec.stop()
     await store.finalize()
   } catch (e) {
-    startError.value = e.message || 'Sonlandırma başarısız.'
+    startError.value = e.message || t('rec.finalizeError')
     stopping.value = false
   }
 }
 </script>
 
 <template>
-  <div class="flex flex-col items-center text-center gap-6 pt-6">
+  <div class="flex flex-col items-center text-center gap-8 pt-4 rise">
     <div>
-      <div class="text-sm text-slate-400">Kaydediliyor</div>
-      <h2 class="text-lg font-semibold mt-0.5">{{ store.title }}</h2>
+      <div class="label mb-1.5 flex items-center justify-center gap-1.5">
+        <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--live); animation: blink 1s infinite"></span>
+        {{ t('rec.recording') }}
+      </div>
+      <h2 class="serif-title text-[1.7rem]">{{ store.title }}</h2>
     </div>
 
-    <!-- Canlı sayaç + nabız halkası -->
-    <div class="relative flex items-center justify-center">
+    <!-- Kayıt kadranı -->
+    <div class="relative flex items-center justify-center my-2">
       <span
         v-if="rec.recording.value"
-        class="absolute inline-flex h-40 w-40 rounded-full bg-red-500/20 animate-ping"
+        class="absolute rounded-full"
+        style="width: 190px; height: 190px; border: 1.5px solid var(--live); animation: ring-pulse 2s cubic-bezier(0,0,0.2,1) infinite"
+      ></span>
+      <span
+        v-if="rec.recording.value"
+        class="absolute rounded-full"
+        style="width: 190px; height: 190px; border: 1.5px solid var(--live); animation: ring-pulse 2s cubic-bezier(0,0,0.2,1) infinite 1s"
       ></span>
       <div
-        class="relative h-40 w-40 rounded-full bg-slate-800 border-4 border-red-500/70 flex flex-col items-center justify-center"
+        class="relative rounded-full flex flex-col items-center justify-center panel"
+        style="width: 190px; height: 190px; border-color: var(--live)"
       >
-        <span class="text-3xl font-mono tabular-nums">{{ rec.elapsedLabel.value }}</span>
-        <span class="mt-1 text-xs text-red-400 flex items-center gap-1">
-          <span class="h-2 w-2 rounded-full bg-red-500 animate-pulse"></span> CANLI
-        </span>
+        <div class="font-mono tabular-nums" style="font-size: 2.2rem; letter-spacing: -0.02em">
+          {{ rec.elapsedLabel.value }}
+        </div>
+        <!-- ekolayzer -->
+        <div class="flex items-end gap-1 mt-2" style="height: 18px">
+          <span
+            v-for="i in 7"
+            :key="i"
+            class="w-1 rounded-full"
+            :style="`height:18px;background:var(--live);transform-origin:bottom;animation:eq ${0.7 + (i % 3) * 0.25}s ease-in-out infinite ${i * 0.08}s`"
+          ></span>
+        </div>
       </div>
     </div>
 
-    <div class="text-xs text-slate-400 space-y-1">
-      <div>Yüklenen parça: {{ rec.uploaded.value }}<span v-if="rec.pending.value"> · sırada {{ rec.pending.value }}</span></div>
-      <p class="max-w-xs">
-        📱 Telefonda: ekranı açık ve uygulamayı önde tutun — arka plana geçince kayıt durabilir.
-      </p>
+    <div class="label" style="color: var(--ink-2)">
+      {{ t('rec.uploaded', { n: rec.uploaded.value }) }}<span v-if="rec.pending.value"> · {{ t('rec.queued', { n: rec.pending.value }) }}</span>
     </div>
 
-    <p v-if="rec.errorMsg.value" class="text-xs text-amber-400">{{ rec.errorMsg.value }}</p>
-    <p v-if="startError" class="text-sm text-red-400">{{ startError }}</p>
+    <div class="panel px-4 py-3 max-w-sm text-sm" style="color: var(--ink-2)">
+      {{ t('rec.phoneHint') }}
+    </div>
 
-    <button
-      @click="stopAndProcess"
-      :disabled="stopping"
-      class="w-full max-w-xs rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 px-4 py-4 text-base font-semibold transition"
-    >
-      {{ stopping ? 'Sonlandırılıyor…' : '■ Durdur ve Özetle' }}
+    <p v-if="rec.errorMsg.value" class="text-xs" style="color: var(--signal)">{{ rec.errorMsg.value }}</p>
+    <p v-if="startError" class="text-sm" style="color: var(--danger)">{{ startError }}</p>
+
+    <button @click="stopAndProcess" :disabled="stopping" class="btn btn-live w-full max-w-xs py-4 text-[15px]">
+      {{ stopping ? t('rec.stopping') : t('rec.stop') }}
     </button>
   </div>
 </template>

@@ -91,7 +91,15 @@ func (o *OllamaSummarizer) Summarize(ctx context.Context, transcript, style stri
 	system := "Sen bir toplantı asistanısın. Verilen Türkçe toplantı transkriptinden " +
 		"yapılandırılmış bir özet çıkar: başlık (headline), ana maddeler (key_points), " +
 		"kararlar (decisions), aksiyon maddeleri (action_items: task/owner/due). " +
-		"Yanıtın TÜRKÇE olsun. Bilgi yoksa owner/due boş string olabilir. " + styleGuide(style)
+		"Yanıtın TÜRKÇE olsun.\n" +
+		"KURALLAR:\n" +
+		"- owner (sahip): SADECE transkriptte bir işi belirli bir KİŞİYE/İSME açıkça atanmışsa doldur. " +
+		"Belirsizse BOŞ bırak. 'gündeminde tutacak kişi', 'ilgili kişi', 'birisi' gibi genel ifadeleri sahip olarak YAZMA.\n" +
+		"- due (tarih): sadece açıkça bir tarih/süre söylendiyse doldur, yoksa BOŞ bırak. Tarih UYDURMA.\n" +
+		"- Transkriptte olmayan bilgi ekleme, kişi/kurum adı uydurma.\n" +
+		"- ÖZ OL, TEKRARLAMA: key_points tartışılan ana konulardır (en fazla 6). " +
+		"decisions yalnızca net alınan kararlardır. action_items yalnızca yapılacak somut işlerdir. " +
+		"Aynı maddeyi birden fazla bölüme KOYMA (bir madde ya karar ya aksiyondur).\n" + styleGuide(style)
 
 	var b strings.Builder
 	if len(participants) > 0 {
@@ -110,7 +118,7 @@ func (o *OllamaSummarizer) Summarize(ctx context.Context, transcript, style stri
 		Format: ollamaSchema(),
 		// num_ctx: uzun toplantı transkriptlerinin sığması için bağlamı genişlet
 		// (varsayılan 4096 uzun toplantılarda yetmeyebilir).
-		Options: map[string]any{"temperature": 0.2, "num_ctx": 8192},
+		Options: map[string]any{"temperature": 0.2, "num_ctx": 16384},
 	}
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
@@ -148,4 +156,41 @@ func (o *OllamaSummarizer) Summarize(ctx context.Context, transcript, style stri
 		return empty, fmt.Errorf("özet JSON'u ayrıştırılamadı: %w — gelen: %s", err, text)
 	}
 	return content, nil
+}
+
+// CleanTranscript, transkriptteki bariz ASR hatalarını bağlamdan onarır (düz metin döner).
+func (o *OllamaSummarizer) CleanTranscript(ctx context.Context, transcript string) (string, error) {
+	reqBody := ollamaChatReq{
+		Model: o.Model,
+		Messages: []ollamaMessage{
+			{Role: "system", Content: cleanSystemPrompt},
+			{Role: "user", Content: transcript},
+		},
+		Stream:  false,
+		Options: map[string]any{"temperature": 0.1, "num_ctx": 16384},
+	}
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		return transcript, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.Host+"/api/chat", bytes.NewReader(payload))
+	if err != nil {
+		return transcript, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := o.client.Do(req)
+	if err != nil {
+		return transcript, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	var or ollamaChatResp
+	if err := json.Unmarshal(raw, &or); err != nil || resp.StatusCode != http.StatusOK || or.Error != "" {
+		return transcript, fmt.Errorf("ollama temizleme hatası (%d)", resp.StatusCode)
+	}
+	out := strings.TrimSpace(or.Message.Content)
+	if out == "" {
+		return transcript, nil
+	}
+	return out, nil
 }

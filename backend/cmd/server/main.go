@@ -54,8 +54,12 @@ func main() {
 	var asr providers.ASR = providers.StubASR{}
 	switch {
 	case cfg.WhisperModel != "":
-		asr = providers.NewWhisperCppASR(cfg.WhisperBin, cfg.WhisperModel)
-		log.Printf("[providers] ASR: whisper.cpp yerel (%s)", cfg.WhisperModel)
+		asr = providers.NewWhisperCppASR(cfg.WhisperBin, cfg.WhisperModel, cfg.WhisperPrompt, cfg.WhisperVADModel)
+		vad := "kapalı"
+		if cfg.WhisperVADModel != "" {
+			vad = "açık"
+		}
+		log.Printf("[providers] ASR: whisper.cpp yerel (%s, VAD:%s)", cfg.WhisperModel, vad)
 	case cfg.OpenAIKey != "":
 		asr = providers.NewWhisperASR(cfg.OpenAIKey, cfg.ASRModel)
 		log.Printf("[providers] ASR: OpenAI Whisper API (%s)", cfg.ASRModel)
@@ -76,16 +80,21 @@ func main() {
 		log.Println("[providers] LLM: stub (OLLAMA_MODEL / GOOGLE_API_KEY yok)")
 	}
 
+	// Mail önceliği: yerel/kurum-içi SMTP (offline) > Resend (bulut) > stub.
 	var mailer providers.Mailer = providers.StubMailer{}
-	if cfg.ResendKey != "" {
+	switch {
+	case cfg.SMTPHost != "":
+		mailer = providers.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass, cfg.MailFrom)
+		log.Printf("[providers] Mail: SMTP yerel (%s:%s, from %s)", cfg.SMTPHost, cfg.SMTPPort, cfg.MailFrom)
+	case cfg.ResendKey != "":
 		mailer = providers.NewResendMailer(cfg.ResendKey, cfg.MailFrom)
 		log.Printf("[providers] Mail: Resend (from %s)", cfg.MailFrom)
-	} else {
-		log.Println("[providers] Mail: stub (RESEND_API_KEY yok)")
+	default:
+		log.Println("[providers] Mail: stub (SMTP_HOST / RESEND_API_KEY yok)")
 	}
 
 	// Worker'ı başlat.
-	wrk := worker.New(pg, disk, asr, sum, mailer, hub, cfg.MailFrom, cfg.ASRLanguage)
+	wrk := worker.New(pg, disk, asr, sum, mailer, hub, cfg.MailFrom, cfg.ASRLanguage, cfg.Corrections)
 	go wrk.Run(ctx)
 
 	// HTTP sunucusu.

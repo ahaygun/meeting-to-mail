@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,26 +20,30 @@ import (
 
 // Worker, boru hattını yürüten bileşen.
 type Worker struct {
-	st       store.Store
-	disk     *storage.Disk
-	asr      providers.ASR
-	sum      providers.Summarizer
-	mailer   providers.Mailer
-	hub      *events.Hub
-	mailFrom string
-	asrLang  string
-	poll     time.Duration
+	st          store.Store
+	disk        *storage.Disk
+	asr         providers.ASR
+	sum         providers.Summarizer
+	mailer      providers.Mailer
+	hub         *events.Hub
+	mailFrom    string
+	asrLang     string
+	corrections *strings.Replacer
+	poll        time.Duration
 }
 
-// New bir Worker oluşturur.
+// New bir Worker oluşturur. corrections: "yanlış=>doğru; ..." biçiminde
+// deterministik terim düzeltmeleri (bilinen ASR hataları için).
 func New(st store.Store, disk *storage.Disk, asr providers.ASR, sum providers.Summarizer,
-	mailer providers.Mailer, hub *events.Hub, mailFrom, asrLang string) *Worker {
+	mailer providers.Mailer, hub *events.Hub, mailFrom, asrLang, corrections string) *Worker {
 	if asrLang == "" {
 		asrLang = "tr"
 	}
 	return &Worker{
 		st: st, disk: disk, asr: asr, sum: sum, mailer: mailer,
-		hub: hub, mailFrom: mailFrom, asrLang: asrLang, poll: 400 * time.Millisecond,
+		hub: hub, mailFrom: mailFrom, asrLang: asrLang,
+		corrections: providers.NewCorrections(corrections),
+		poll:        400 * time.Millisecond,
 	}
 }
 
@@ -116,6 +121,10 @@ func (w *Worker) doTranscribe(ctx context.Context, sessionID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
+	// Bilinen terim hatalarını deterministik olarak düzelt (ör. iyitim→iyilik).
+	if w.corrections != nil {
+		text = w.corrections.Replace(text)
+	}
 	if err := w.st.CreateTranscript(ctx, &domain.Transcript{
 		SessionID: sessionID, Provider: provider, Language: w.asrLang, Text: text,
 	}); err != nil {
@@ -138,10 +147,27 @@ func (w *Worker) doSummarize(ctx context.Context, sessionID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	content, err := w.sum.Summarize(ctx, tr.Text, sess.SummaryStyle, sess.Participants)
+
+	// Opsiyonel: özetten önce transkriptteki bariz ASR hatalarını düzelt.
+	transcriptText := tr.Text
+	if cleaner, ok := w.sum.(providers.TranscriptCleaner); ok {
+		w.hub.Publish(sessionID, events.Event{Status: domain.StatusSummarizing, Step: domain.JobSummarize, Message: "Transkript düzeltiliyor…"})
+		if cleaned, cerr := cleaner.CleanTranscript(ctx, transcriptText); cerr != nil {
+			log.Printf("[worker] transkript temizleme atlandı: %v", cerr)
+		} else if cleaned != "" {
+			transcriptText = cleaned
+		}
+	}
+
+	content, err := w.sum.Summarize(ctx, transcriptText, sess.SummaryStyle, sess.Participants)
 	if err != nil {
 		return err
 	}
+	// Deterministik son cila: jenerik sahip/tarih temizle, "yaratmak"→"oluşturmak",
+	// bilinen terim düzeltmelerini uygula.
+	content = providers.SanitizeSummary(content)
+	content = providers.ApplyCorrectionsToSummary(w.corrections, content)
+
 	text := providers.RenderText(sess.Title, content)
 	if err := w.st.CreateSummary(ctx, &domain.Summary{
 		SessionID: sessionID, Style: sess.SummaryStyle, Content: content, ContentText: text,

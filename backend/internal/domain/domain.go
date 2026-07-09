@@ -70,6 +70,14 @@ type Contact struct {
 	LastUsedAt time.Time `json:"last_used_at"`
 }
 
+// Group, kayıtlı bir alıcı grubu (dağıtım listesi).
+type Group struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Emails    []string  `json:"emails"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // SessionListItem, geçmiş oturum listesinde gösterilen özet satır.
 type SessionListItem struct {
 	ID             uuid.UUID  `json:"id"`

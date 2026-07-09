@@ -39,10 +39,10 @@ func transcodeToWAV(ctx context.Context, inputPath string) (wavPath string, clea
 }
 
 // prepareSegments, birleşik sesi ASR'a uygun parçalara hazırlar:
-//   1. 16kHz mono MP3'e (64kbps) yeniden kodlar — Whisper zaten 16kHz kullanır,
-//      bu adım dosyayı küçültür ve formatı normalleştirir.
-//   2. ~20 dakikalık (segmentSeconds) parçalara böler — 64kbps'te her parça
-//      ~9-10MB olur, Whisper'ın 25MB limitinin rahat altında.
+//  1. 16kHz mono MP3'e (64kbps) yeniden kodlar — Whisper zaten 16kHz kullanır,
+//     bu adım dosyayı küçültür ve formatı normalleştirir.
+//  2. ~20 dakikalık (segmentSeconds) parçalara böler — 64kbps'te her parça
+//     ~9-10MB olur, Whisper'ın 25MB limitinin rahat altında.
 //
 // Dönen dizin ve dosyalar çağıran tarafından temizlenmelidir (cleanup fonksiyonu).
 func prepareSegments(ctx context.Context, inputPath string, segmentSeconds int) (segments []string, cleanup func(), err error) {

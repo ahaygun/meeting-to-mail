@@ -373,8 +373,71 @@ func (p *PG) UpsertContact(ctx context.Context, email, name string) error {
 	return err
 }
 
+func (p *PG) UpdateContact(ctx context.Context, id int64, name string) error {
+	_, err := p.pool.Exec(ctx, `UPDATE contacts SET name = $2 WHERE id = $1`, id, name)
+	return err
+}
+
 func (p *PG) DeleteContact(ctx context.Context, id int64) error {
 	_, err := p.pool.Exec(ctx, `DELETE FROM contacts WHERE id = $1`, id)
+	return err
+}
+
+// --- Groups (dağıtım listeleri) ---
+
+func (p *PG) ListGroups(ctx context.Context) ([]domain.Group, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT g.id, g.name, g.created_at,
+		       COALESCE(array_agg(m.email ORDER BY m.email) FILTER (WHERE m.email IS NOT NULL), '{}') AS emails
+		FROM recipient_groups g
+		LEFT JOIN recipient_group_members m ON m.group_id = g.id
+		GROUP BY g.id
+		ORDER BY g.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.Group
+	for rows.Next() {
+		var g domain.Group
+		if err := rows.Scan(&g.ID, &g.Name, &g.CreatedAt, &g.Emails); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func (p *PG) CreateGroup(ctx context.Context, name string, emails []string) (*domain.Group, error) {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	var g domain.Group
+	g.Name = name
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO recipient_groups (name) VALUES ($1) RETURNING id, created_at`,
+		name).Scan(&g.ID, &g.CreatedAt); err != nil {
+		return nil, err
+	}
+	for _, e := range emails {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO recipient_group_members (group_id, email) VALUES ($1, $2)
+			 ON CONFLICT (group_id, email) DO NOTHING`, g.ID, e); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	g.Emails = emails
+	return &g, nil
+}
+
+func (p *PG) DeleteGroup(ctx context.Context, id int64) error {
+	_, err := p.pool.Exec(ctx, `DELETE FROM recipient_groups WHERE id = $1`, id)
 	return err
 }
 

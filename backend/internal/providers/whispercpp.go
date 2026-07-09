@@ -11,19 +11,21 @@ import (
 
 // WhisperCppASR, whisper.cpp CLI (`whisper-cli`) ile TAMAMEN YEREL (offline)
 // ses→metin yapar — hiçbir ses cihazdan dışarı çıkmaz, API anahtarı gerekmez.
-// Türkçe için ggml-small model iyi bir denge. Yerel işleme olduğu için 25MB gibi
-// bir limit yoktur; birleşik ses tek seferde işlenir.
+// Doğruluk için: beam search, sıcaklık 0, non-speech token bastırma, alan
+// sözlüğü ipucu (initial prompt) ve opsiyonel VAD (sessizlik halüsinasyonunu keser).
 type WhisperCppASR struct {
-	Bin   string // "whisper-cli"
-	Model string // ör. .../ggml-small.bin
+	Bin      string // "whisper-cli"
+	Model    string // ör. .../ggml-large-v3.bin
+	Prompt   string // alan sözlüğü ipucu (doğru yazımlara yönlendirir)
+	VADModel string // ayarlıysa VAD etkinleşir (sessizliği kırpar)
 }
 
 // NewWhisperCppASR bir WhisperCppASR oluşturur.
-func NewWhisperCppASR(bin, model string) *WhisperCppASR {
+func NewWhisperCppASR(bin, model, prompt, vadModel string) *WhisperCppASR {
 	if bin == "" {
 		bin = "whisper-cli"
 	}
-	return &WhisperCppASR{Bin: bin, Model: model}
+	return &WhisperCppASR{Bin: bin, Model: model, Prompt: prompt, VADModel: vadModel}
 }
 
 // Transcribe, birleşik ses dosyasını yerel whisper.cpp ile metne döker.
@@ -46,14 +48,25 @@ func (w *WhisperCppASR) Transcribe(ctx context.Context, audioPath, language stri
 	defer os.RemoveAll(tmpDir)
 	outBase := filepath.Join(tmpDir, "out")
 
-	cmd := exec.CommandContext(ctx, w.Bin,
+	args := []string{
 		"-m", w.Model,
 		"-f", wavPath,
 		"-l", language,
+		"-bs", "5", // beam search — daha isabetli
+		"-bo", "5", // best-of adayları
+		"-tp", "0", // sıcaklık 0 (deterministik)
+		"-sns",  // non-speech token'ları bastır (halüsinasyon azaltır)
 		"-nt",   // zaman damgası yok
 		"-otxt", // düz metin transkript üret
 		"-of", outBase,
-	)
+	}
+	if w.Prompt != "" {
+		args = append(args, "--prompt", w.Prompt)
+	}
+	if w.VADModel != "" {
+		args = append(args, "--vad", "--vad-model", w.VADModel)
+	}
+	cmd := exec.CommandContext(ctx, w.Bin, args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", "whisper.cpp", fmt.Errorf("whisper.cpp hatası: %s: %w", strings.TrimSpace(string(out)), err)
 	}

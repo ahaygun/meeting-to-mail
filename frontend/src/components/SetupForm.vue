@@ -1,7 +1,8 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive } from 'vue'
 import { useSessionStore } from '../stores/session'
-import { api } from '../lib/api'
+import RecipientPicker from './RecipientPicker.vue'
+import { t } from '../i18n'
 
 const store = useSessionStore()
 
@@ -13,75 +14,19 @@ const form = reactive({
   cancelWindowMinutes: 5,
 })
 
+const recipients = ref([]) // seçili alıcı e-postaları (RecipientPicker'dan)
 const mode = ref('record') // 'record' | 'file'
 const file = ref(null)
 const fileName = ref('')
-
-const contacts = ref([]) // [{id,email,name}]
-const selected = ref(new Set()) // seçili e-postalar
-const newEmail = ref('')
 
 const submitting = ref(false)
 const error = ref('')
 
 const styles = [
-  { value: 'decisions_actions', label: 'Kararlar & Aksiyonlar' },
-  { value: 'full_minutes', label: 'Tam Tutanak' },
-  { value: 'short', label: 'Kısa Özet' },
+  { value: 'decisions_actions', labelKey: 'setup.style.decisions_actions' },
+  { value: 'full_minutes', labelKey: 'setup.style.full_minutes' },
+  { value: 'short', labelKey: 'setup.style.short' },
 ]
-
-const selectedCount = computed(() => selected.value.size)
-
-async function loadContacts() {
-  try {
-    contacts.value = await api.listContacts()
-  } catch {
-    contacts.value = []
-  }
-}
-onMounted(loadContacts)
-
-function toggle(email) {
-  const s = selected.value
-  if (s.has(email)) s.delete(email)
-  else s.add(email)
-  selected.value = new Set(s) // reaktifliği tetikle
-}
-
-async function addNewEmail() {
-  const e = newEmail.value.trim()
-  if (!e) return
-  if (!e.includes('@')) {
-    error.value = 'Geçersiz e-posta.'
-    return
-  }
-  error.value = ''
-  // Rehberde yoksa ekle.
-  if (!contacts.value.some((c) => c.email === e)) {
-    try {
-      await api.createContact(e)
-      await loadContacts()
-    } catch {
-      /* yine de seç */
-    }
-  }
-  selected.value = new Set(selected.value).add(e)
-  newEmail.value = ''
-}
-
-async function removeContact(c) {
-  try {
-    await api.deleteContact(c.id)
-    contacts.value = contacts.value.filter((x) => x.id !== c.id)
-    if (selected.value.has(c.email)) {
-      const s = new Set(selected.value)
-      s.delete(c.email)
-      selected.value = s
-    }
-  } catch {
-    /* yoksay */
-  }
-}
 
 function onFile(e) {
   const f = e.target.files?.[0] || null
@@ -95,18 +40,17 @@ function parseList(text) {
 
 async function submit() {
   error.value = ''
-  const recipients = [...selected.value]
 
   if (!form.title.trim()) {
-    error.value = 'Toplantı başlığı gerekli.'
+    error.value = t('setup.err.title')
     return
   }
-  if (recipients.length === 0) {
-    error.value = 'En az bir alıcı seçin veya ekleyin.'
+  if (recipients.value.length === 0) {
+    error.value = t('setup.err.recipients')
     return
   }
   if (mode.value === 'file' && !file.value) {
-    error.value = 'Bir ses dosyası seçin.'
+    error.value = t('setup.err.file')
     return
   }
 
@@ -114,7 +58,7 @@ async function submit() {
   try {
     await store.create({
       title: form.title.trim(),
-      recipients,
+      recipients: recipients.value,
       participants: parseList(form.participantsText),
       summary_style: form.summaryStyle,
       send_policy: form.sendPolicy,
@@ -129,187 +73,132 @@ async function submit() {
       await store.uploadFile(file.value)
     }
   } catch (e) {
-    error.value = e.message || 'İşlem başlatılamadı.'
+    error.value = e.message || t('setup.err.generic')
     submitting.value = false
   }
 }
 </script>
 
 <template>
-  <form class="space-y-5" @submit.prevent="submit">
-    <div>
-      <h2 class="text-lg font-semibold mb-1">Toplantıyı Kur</h2>
-      <p class="text-sm text-slate-400">Alıcıları ve ayarları belirle, sonra kaydet ya da dosya yükle.</p>
+  <form class="space-y-9" @submit.prevent="submit">
+    <div class="rise">
+      <h2 class="serif-title text-[1.7rem] mb-1">{{ t('setup.title') }}</h2>
+      <p class="text-sm" style="color: var(--ink-2)">
+        {{ t('setup.subtitle') }}
+      </p>
     </div>
 
-    <!-- Kaynak modu -->
-    <div class="grid grid-cols-2 gap-2">
-      <button
-        type="button"
-        @click="mode = 'record'"
-        :class="[
-          'rounded-lg border px-3 py-2.5 text-sm text-center transition',
-          mode === 'record' ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-700 bg-slate-800',
-        ]"
-      >
-        🎙️ Canlı Kayıt
-      </button>
-      <button
-        type="button"
-        @click="mode = 'file'"
-        :class="[
-          'rounded-lg border px-3 py-2.5 text-sm text-center transition',
-          mode === 'file' ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-700 bg-slate-800',
-        ]"
-      >
-        📁 Dosya Yükle
-      </button>
-    </div>
-
-    <div v-if="mode === 'file'" class="space-y-1">
-      <label class="text-sm font-medium">Ses Dosyası</label>
-      <label
-        class="flex items-center gap-3 rounded-lg bg-slate-800 border border-dashed border-slate-600 px-3 py-3 text-sm cursor-pointer hover:border-indigo-500/60"
-      >
-        <span class="text-xl">📁</span>
-        <span class="text-slate-300 truncate">{{ fileName || 'Dosya seç (mp3, m4a, wav, webm…)' }}</span>
-        <input type="file" accept="audio/*" class="hidden" @change="onFile" />
-      </label>
-    </div>
-
-    <div class="space-y-1">
-      <label class="text-sm font-medium">Toplantı Başlığı</label>
-      <input
-        v-model="form.title"
-        type="text"
-        placeholder="ör. Haftalık Ekip Toplantısı"
-        class="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      />
-      <p class="text-xs text-slate-500">E-posta konusu olarak kullanılır.</p>
-    </div>
-
-    <!-- Alıcı seçici -->
-    <div class="space-y-2">
-      <label class="text-sm font-medium">
-        Alıcılar
-        <span v-if="selectedCount" class="text-indigo-400">({{ selectedCount }} seçili)</span>
-      </label>
-
-      <div v-if="contacts.length" class="flex flex-wrap gap-2">
-        <span
-          v-for="c in contacts"
-          :key="c.id"
-          :class="[
-            'group inline-flex items-center gap-1.5 rounded-full border pl-3 pr-2 py-1.5 text-sm cursor-pointer transition',
-            selected.has(c.email)
-              ? 'border-indigo-500 bg-indigo-500/15 text-indigo-200'
-              : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500',
-          ]"
-          @click="toggle(c.email)"
-        >
-          <span v-if="selected.has(c.email)">✓</span>
-          <span class="truncate max-w-[10rem]">{{ c.name || c.email }}</span>
-          <button
-            type="button"
-            title="Rehberden sil"
-            class="ml-0.5 text-slate-500 hover:text-red-400"
-            @click.stop="removeContact(c)"
-          >
-            ×
-          </button>
-        </span>
+    <!-- 01 · Kaynak -->
+    <section class="rise" style="animation-delay: 40ms">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="label">01</span><span class="label">{{ t('setup.source') }}</span>
+        <hr class="rule flex-1" />
       </div>
-      <p v-else class="text-xs text-slate-500">Kayıtlı alıcı yok — aşağıdan ekleyebilirsin.</p>
-
-      <div class="flex gap-2">
-        <input
-          v-model="newEmail"
-          type="email"
-          placeholder="yeni@ornek.com"
-          @keydown.enter.prevent="addNewEmail"
-          class="flex-1 rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-        <button
-          type="button"
-          @click="addNewEmail"
-          class="rounded-lg bg-slate-700 hover:bg-slate-600 px-4 text-sm font-medium"
-        >
-          Ekle
+      <div class="grid grid-cols-2 gap-2.5">
+        <button type="button" class="select-card text-left" :data-on="mode === 'record'" @click="mode = 'record'">
+          <div class="text-[15px] font-semibold flex items-center gap-2">
+            <span style="color: var(--live)">●</span> {{ t('setup.liveRecord') }}
+          </div>
+          <div class="text-xs mt-0.5" style="color: var(--ink-3)">{{ t('setup.liveRecordHint') }}</div>
+        </button>
+        <button type="button" class="select-card text-left" :data-on="mode === 'file'" @click="mode = 'file'">
+          <div class="text-[15px] font-semibold flex items-center gap-2">
+            <span style="color: var(--signal)">↑</span> {{ t('setup.uploadFile') }}
+          </div>
+          <div class="text-xs mt-0.5" style="color: var(--ink-3)">{{ t('setup.uploadFileHint') }}</div>
         </button>
       </div>
-      <p class="text-xs text-slate-500">Eklenen adresler kaydedilir; sonraki toplantıda seçilebilir.</p>
-    </div>
+      <label
+        v-if="mode === 'file'"
+        class="mt-2.5 flex items-center gap-3 field cursor-pointer"
+        style="border-style: dashed"
+      >
+        <span class="font-mono text-lg" style="color: var(--signal)">♪</span>
+        <span class="truncate" :style="fileName ? 'color:var(--ink)' : 'color:var(--ink-3)'">
+          {{ fileName || t('setup.filePlaceholder') }}
+        </span>
+        <input type="file" accept="audio/*" class="hidden" @change="onFile" />
+      </label>
+    </section>
 
-    <div class="space-y-1">
-      <label class="text-sm font-medium">Katılımcılar <span class="text-slate-500">(opsiyonel)</span></label>
+    <!-- 02 · Başlık -->
+    <section class="rise" style="animation-delay: 80ms">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="label">02</span><span class="label">{{ t('setup.titleLabel') }}</span>
+        <hr class="rule flex-1" />
+      </div>
+      <input v-model="form.title" type="text" :placeholder="t('setup.titlePlaceholder')" class="field" />
+      <p class="text-xs mt-1.5" style="color: var(--ink-3)">{{ t('setup.titleHint') }}</p>
+    </section>
+
+    <!-- 03 · Alıcılar -->
+    <section class="rise" style="animation-delay: 120ms">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="label">03</span><span class="label">{{ t('setup.recipients') }}</span>
+        <hr class="rule flex-1" />
+      </div>
+      <RecipientPicker v-model="recipients" />
+    </section>
+
+    <!-- 04 · Katılımcılar + Biçim -->
+    <section class="rise" style="animation-delay: 160ms">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="label">04</span><span class="label">{{ t('setup.participantsFormat') }}</span>
+        <hr class="rule flex-1" />
+      </div>
       <textarea
         v-model="form.participantsText"
         rows="2"
-        placeholder="Ali, Ayşe, Mehmet"
-        class="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        :placeholder="t('setup.participantsPlaceholder')"
+        class="field mb-2.5 resize-none"
       ></textarea>
-    </div>
-
-    <div class="space-y-1">
-      <label class="text-sm font-medium">Özet Stili</label>
-      <select
-        v-model="form.summaryStyle"
-        class="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      >
-        <option v-for="s in styles" :key="s.value" :value="s.value">{{ s.label }}</option>
-      </select>
-    </div>
-
-    <div class="space-y-2">
-      <label class="text-sm font-medium">Gönderim Politikası</label>
-      <div class="grid grid-cols-2 gap-2">
+      <div class="flex flex-wrap gap-2">
         <button
+          v-for="s in styles"
+          :key="s.value"
           type="button"
-          @click="form.sendPolicy = 'immediate'"
-          :class="[
-            'rounded-lg border px-3 py-2.5 text-sm text-left transition',
-            form.sendPolicy === 'immediate' ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-700 bg-slate-800',
-          ]"
-        >
-          <div class="font-medium">Hemen gönder</div>
-          <div class="text-xs text-slate-400">Özet hazır olunca yollar.</div>
+          class="chip"
+          :data-on="form.summaryStyle === s.value"
+          @click="form.summaryStyle = s.value"
+        >{{ t(s.labelKey) }}</button>
+      </div>
+    </section>
+
+    <!-- 05 · Gönderim -->
+    <section class="rise" style="animation-delay: 200ms">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="label">05</span><span class="label">{{ t('setup.sendPolicy') }}</span>
+        <hr class="rule flex-1" />
+      </div>
+      <div class="grid grid-cols-2 gap-2.5">
+        <button type="button" class="select-card text-left" :data-on="form.sendPolicy === 'immediate'" @click="form.sendPolicy = 'immediate'">
+          <div class="text-[15px] font-semibold">{{ t('setup.immediate') }}</div>
+          <div class="text-xs mt-0.5" style="color: var(--ink-3)">{{ t('setup.immediateHint') }}</div>
         </button>
-        <button
-          type="button"
-          @click="form.sendPolicy = 'cancel_window'"
-          :class="[
-            'rounded-lg border px-3 py-2.5 text-sm text-left transition',
-            form.sendPolicy === 'cancel_window' ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-700 bg-slate-800',
-          ]"
-        >
-          <div class="font-medium">İptal pencereli</div>
-          <div class="text-xs text-slate-400">Göndermeden önce bekler.</div>
+        <button type="button" class="select-card text-left" :data-on="form.sendPolicy === 'cancel_window'" @click="form.sendPolicy = 'cancel_window'">
+          <div class="text-[15px] font-semibold">{{ t('setup.cancelWindow') }}</div>
+          <div class="text-xs mt-0.5" style="color: var(--ink-3)">{{ t('setup.cancelWindowHint') }}</div>
         </button>
       </div>
-      <div v-if="form.sendPolicy === 'cancel_window'" class="flex items-center gap-2 pt-1">
-        <label class="text-sm text-slate-300">Pencere:</label>
-        <input
-          v-model.number="form.cancelWindowMinutes"
-          type="number"
-          min="1"
-          max="60"
-          class="w-20 rounded-lg bg-slate-800 border border-slate-700 px-2 py-1.5 text-sm"
-        />
-        <span class="text-sm text-slate-400">dakika</span>
+      <div v-if="form.sendPolicy === 'cancel_window'" class="flex items-center gap-2 mt-2.5">
+        <span class="text-sm" style="color: var(--ink-2)">{{ t('setup.window') }}</span>
+        <input v-model.number="form.cancelWindowMinutes" type="number" min="1" max="60" class="field font-mono" style="width: 5rem" />
+        <span class="text-sm" style="color: var(--ink-2)">{{ t('setup.minutes') }}</span>
       </div>
-    </div>
+    </section>
 
-    <p v-if="error" class="text-sm text-red-400">{{ error }}</p>
+    <p v-if="error" class="text-sm rise" style="color: var(--danger)">{{ error }}</p>
 
     <button
       type="submit"
       :disabled="submitting"
-      class="w-full rounded-xl px-4 py-4 text-base font-semibold transition disabled:opacity-50"
-      :class="mode === 'record' ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-emerald-600 hover:bg-emerald-500'"
+      class="btn w-full py-4 text-[15px] rise"
+      :class="mode === 'record' ? 'btn-live' : 'btn-signal'"
+      style="animation-delay: 240ms"
     >
-      <span v-if="submitting">İşleniyor…</span>
-      <span v-else-if="mode === 'record'">● Kaydı Başlat</span>
-      <span v-else>⬆ Yükle ve Özetle</span>
+      <span v-if="submitting">{{ t('setup.processing') }}</span>
+      <span v-else-if="mode === 'record'">{{ t('setup.startRecord') }}</span>
+      <span v-else>{{ t('setup.uploadSummarize') }}</span>
     </button>
   </form>
 </template>

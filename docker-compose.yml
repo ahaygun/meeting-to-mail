@@ -16,5 +16,15 @@ services:
       timeout: 5s
       retries: 5
 
+  # Yerel SMTP yakalayıcı: gerçek anahtar olmadan mail katmanını offline test et.
+  # SMTP :1025 (backend buraya yollar) · Web arayüzü :8025 (gelen kutusunu gör).
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: toplanti-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: unless-stopped
+
 volumes:
   pgdata:

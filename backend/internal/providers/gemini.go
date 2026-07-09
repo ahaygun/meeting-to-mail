@@ -78,8 +78,8 @@ type geminiPart struct {
 }
 
 type geminiGenConfig struct {
-	ResponseMIMEType string         `json:"responseMimeType"`
-	ResponseSchema   map[string]any `json:"responseSchema"`
+	ResponseMIMEType string         `json:"responseMimeType,omitempty"`
+	ResponseSchema   map[string]any `json:"responseSchema,omitempty"`
 }
 
 type geminiResp struct {
@@ -127,9 +127,15 @@ func (g *GeminiSummarizer) Summarize(ctx context.Context, transcript, style stri
 	var empty domain.SummaryContent
 
 	system := "Sen bir toplantı asistanısın. Verilen Türkçe toplantı transkriptinden " +
-		"yapılandırılmış bir özet çıkar. Başlık (headline), ana maddeler (key_points), " +
-		"kararlar (decisions) ve aksiyon maddeleri (action_items: task/owner/due) üret. " +
-		"Bilgi yoksa owner/due boş bırakılabilir. " + styleGuide(style)
+		"yapılandırılmış bir özet çıkar: başlık (headline), ana maddeler (key_points), " +
+		"kararlar (decisions), aksiyon maddeleri (action_items: task/owner/due).\n" +
+		"KURALLAR:\n" +
+		"- owner (sahip): SADECE bir iş belirli bir KİŞİYE/İSME açıkça atanmışsa doldur; " +
+		"belirsizse BOŞ bırak. 'gündeminde tutacak kişi', 'ilgili kişi' gibi genel ifadeleri sahip olarak YAZMA.\n" +
+		"- due (tarih): açıkça söylendiyse doldur, yoksa BOŞ bırak. UYDURMA.\n" +
+		"- Transkriptte olmayan bilgi/isim ekleme.\n" +
+		"- ÖZ OL, TEKRARLAMA: key_points en fazla 6 ana konu; decisions yalnızca net kararlar; " +
+		"action_items yalnızca somut işler. Aynı maddeyi birden fazla bölüme KOYMA.\n" + styleGuide(style)
 
 	var b strings.Builder
 	if len(participants) > 0 {
@@ -187,4 +193,42 @@ func (g *GeminiSummarizer) Summarize(ctx context.Context, transcript, style stri
 		return empty, fmt.Errorf("özet JSON'u ayrıştırılamadı: %w — gelen: %s", err, text)
 	}
 	return content, nil
+}
+
+// CleanTranscript, transkriptteki bariz ASR hatalarını bağlamdan onarır (düz metin döner).
+func (g *GeminiSummarizer) CleanTranscript(ctx context.Context, transcript string) (string, error) {
+	reqBody := geminiReq{
+		SystemInstruction: &geminiContent{Parts: []geminiPart{{Text: cleanSystemPrompt}}},
+		Contents:          []geminiContent{{Role: "user", Parts: []geminiPart{{Text: transcript}}}},
+		GenerationConfig:  geminiGenConfig{}, // düz metin
+	}
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		return transcript, err
+	}
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", g.Model)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return transcript, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-goog-api-key", g.APIKey)
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return transcript, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	var gr geminiResp
+	if err := json.Unmarshal(raw, &gr); err != nil || resp.StatusCode != http.StatusOK || gr.Error != nil {
+		return transcript, fmt.Errorf("gemini temizleme hatası (%d)", resp.StatusCode)
+	}
+	if len(gr.Candidates) == 0 || len(gr.Candidates[0].Content.Parts) == 0 {
+		return transcript, nil
+	}
+	out := strings.TrimSpace(gr.Candidates[0].Content.Parts[0].Text)
+	if out == "" {
+		return transcript, nil
+	}
+	return out, nil
 }

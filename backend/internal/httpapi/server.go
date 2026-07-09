@@ -43,7 +43,7 @@ func (s *Server) Router() http.Handler {
 		// Dev kolaylığı + telefondan LAN erişimi: yapılandırılmış origin'e ek olarak
 		// localhost / 127.0.0.1 / özel ağ (LAN) origin'lerine izin ver.
 		AllowOriginFunc:  s.allowOrigin,
-		AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Accept"},
 		AllowCredentials: false,
 		MaxAge:           300,
@@ -56,7 +56,14 @@ func (s *Server) Router() http.Handler {
 	r.Route("/api/contacts", func(r chi.Router) {
 		r.Get("/", s.listContacts)
 		r.Post("/", s.createContact)
+		r.Patch("/{cid}", s.updateContact)
 		r.Delete("/{cid}", s.deleteContact)
+	})
+
+	r.Route("/api/groups", func(r chi.Router) {
+		r.Get("/", s.listGroups)
+		r.Post("/", s.createGroup)
+		r.Delete("/{gid}", s.deleteGroup)
 	})
 
 	r.Route("/api/sessions", func(r chi.Router) {

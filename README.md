@@ -1,10 +1,12 @@
 <div align="center">
 
+**English** · [Türkçe](README.tr.md)
+
 # meeting·to·mail
 
-### Toplantıyı kaydet → **yerelde** metne dök → yapılandırılmış tutanağa çevir → ilgili kutulara postala.
+### Record a meeting → transcribe it **on-device** → turn it into structured minutes → mail them to the right inboxes.
 
-**Ses cihazdan çıkmadan. Bulut API'sine yüklenmeden. İnternet gerekmeden.**
+**The audio never leaves the machine. Nothing is uploaded to a cloud API. No internet required.**
 
 [![CI](https://github.com/ahaygun/meeting-to-mail/actions/workflows/ci.yml/badge.svg)](https://github.com/ahaygun/meeting-to-mail/actions/workflows/ci.yml)
 ![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)
@@ -18,169 +20,181 @@
 </div>
 
 <div align="center">
-  <img src="docs/screenshot-setup.png" alt="Kurulum ekranı — kaynak, başlık, alıcılar, biçim ve gönderim politikası" width="480" />
+  <img src="docs/screenshot-setup.png" alt="Setup screen — source, title, recipients, format and send policy" width="480" />
   <br />
-  <sub><em>Kur → başlat → durdur → özet ilgili kutulara düşsün. Üstte <strong>YEREL · OFFLINE İŞLEME</strong> rozeti ve TR/EN dil düğmesi.</em></sub>
+  <sub><em>Set up → start → stop → minutes land in the right inboxes. A <strong>LOCAL · OFFLINE PROCESSING</strong> badge and a TR/EN language toggle sit at the top.</em></sub>
 </div>
 
 ---
 
-## Neden farklı? — Ses cihazdan çıkmaz
+## Why it's different — the audio never leaves the device
 
-Piyasadaki "toplantı → özet" araçlarının neredeyse tamamı sesi bir **bulut API'sine** (OpenAI, Deepgram, AssemblyAI…) yükler; metni de bir bulut LLM'ine gönderir. Yani toplantınızın ham sesi ve dökümü üçüncü taraf sunuculardan geçer.
+Almost every "meeting → summary" tool on the market uploads the audio to a **cloud API** (OpenAI, Deepgram, AssemblyAI…) and sends the text to a cloud LLM. That means your meeting's raw audio and transcript pass through third-party servers.
 
-**meeting·to·mail** bu zincirin **her iki ağır adımını da cihazda** çalıştırır:
+**meeting·to·mail** runs **both heavy steps on the device**:
 
-| | Tipik bulut araçları | **meeting·to·mail** |
+| | Typical cloud tools | **meeting·to·mail** |
 |---|---|---|
-| Ses → metin (ASR) | OpenAI / Deepgram / AssemblyAI (bulut) | **whisper.cpp — cihazda** |
-| Metin → özet (LLM) | GPT / Gemini / Claude (bulut) | **Ollama — cihazda** |
-| Ham ses nereye gider? | 3. taraf sunuculara yüklenir | **hiçbir yere — diskten çıkmaz** |
-| İnternet | zorunlu | **gerekmez** (yalnızca mail gönderimi hariç) |
-| Gizlilik / KVKK | veri işleyen sözleşmesi gerekir | **veri kurum dışına çıkmaz** |
+| Audio → text (ASR) | OpenAI / Deepgram / AssemblyAI (cloud) | **whisper.cpp — on-device** |
+| Text → summary (LLM) | GPT / Gemini / Claude (cloud) | **Ollama — on-device** |
+| Where does raw audio go? | uploaded to 3rd-party servers | **nowhere — it never leaves the disk** |
+| Internet | required | **not required** (except the mail send itself) |
+| Privacy / GDPR | data-processor agreement needed | **data never leaves the organization** |
 
-> **Dışarı çıkan tek şey, zaten postalamak istediğiniz nihai tutanaktır.** Ham ses ve transkript cihazda kalır.
-> Bulut sağlayıcılar (OpenAI Whisper, Gemini) yalnızca **isteğe bağlı yedek** olarak desteklenir — `.env`'e anahtar eklemediğiniz sürece hiçbir veri dışarı gitmez.
+> **The only thing that goes out is the final minutes you already meant to email.** The raw audio and transcript stay on the device.
+> Cloud providers (OpenAI Whisper, Gemini) are supported only as an **optional fallback** — unless you add a key to `.env`, nothing goes out.
 
 ---
 
-## Öne çıkanlar
+## Highlights
 
-- 🔒 **Yerel-öncelik / offline** — ASR (whisper.cpp) ve özet (Ollama) tamamen cihazda; uçtan uca offline doğrulandı.
-- 🎙️ **Tarayıcıda kayıt** — `MediaRecorder` + timeslice ile **parça parça** yükleme; çökme olursa yalnızca son parça kaybolur. Ekranı açık tutmak için Wake Lock, canlı sayaç.
-- 📁 **Dosya yükleme** — canlı kayıt yerine mevcut ses dosyasını (mp3/m4a/wav/webm…) yükle; istemcide ~5 MB parçalara bölünür, kayıpsız birleşir.
-- 🧾 **Yapılandırılmış tutanak** — düz metin değil: **ana maddeler · kararlar · aksiyon maddeleri (sahip + tarih)**. LLM'den `responseSchema` ile JSON olarak alınır, mail gövdesine render edilir.
-- 📨 **Gönderim politikası** — `hemen gönder` ya da `iptal pencereli` (belirli süre içinde geri al).
-- 🕘 **Geçmiş** — eski oturumları listele, özet/gönderim detaylarını tekrar aç.
-- 👥 **Kayıtlı alıcılar** — girilen mailler kişi rehberine kaydedilir; sonraki toplantıda chip arayüzünden seçilir/silinir.
-- ⚡ **Canlı ilerleme** — boru hattının her adımı SSE ile arayüze anlık yansır.
-- 🌐 **İki dilli (TR/EN)** — tüm arayüz Türkçe/İngilizce; tema düğmesinin yanından anlık geçiş, tercih tarayıcıda saklanır. Bağımlılıksız, ~130 anahtarlık hafif i18n katmanı.
-- 📱 **Mobil-first & tema** — responsive tasarım, aydınlık/karanlık mod.
+- 🔒 **Local-first / offline** — ASR (whisper.cpp) and summarization (Ollama) run entirely on-device; verified end-to-end offline.
+- 🎙️ **In-browser recording** — `MediaRecorder` + timeslice **chunked** upload; on a crash only the last chunk is lost. Wake Lock keeps the screen on, with a live timer.
+- 📁 **File upload** — instead of a live recording, upload an existing audio file (mp3/m4a/wav/webm…); it's split into ~5 MB chunks client-side and reassembled losslessly.
+- 🧾 **Structured minutes** — not plain text: **key points · decisions · action items (owner + date)**. Requested from the LLM as JSON via `responseSchema`, then rendered into the mail body.
+- 📨 **Send policy** — `send now` or a `cancel window` (recall within a set period).
+- 🕘 **History** — list past sessions, reopen summary/delivery details.
+- 👥 **Saved recipients** — entered emails are stored in a contact book; picked/removed from a chip UI in the next meeting.
+- ⚡ **Live progress** — every pipeline step is streamed to the UI over SSE.
+- 🌐 **Bilingual (TR/EN)** — the whole UI is Turkish/English; instant switch next to the theme toggle, preference stored in the browser. A dependency-free, ~130-key lightweight i18n layer.
+- 📱 **Mobile-first & themed** — responsive design, light/dark mode.
 
 <div align="center">
-  <img src="docs/screenshot-recipients.png" alt="Alıcı seçici — kişi rehberi, gruplar ve tek dokunuşla ekleme" width="440" />
+  <img src="docs/screenshot-recipients.png" alt="Recipient picker — contact book, groups and one-tap add" width="440" />
   <br />
-  <sub><em>Kayıtlı alıcılar & gruplar: girilen mailler rehbere düşer, sonraki toplantıda chip arayüzünden seçilir; grup ile tek dokunuşla eklenir.</em></sub>
+  <sub><em>Saved recipients & groups: entered emails land in the contact book, picked from a chip UI in the next meeting; added with one tap via a group.</em></sub>
 </div>
 
 ---
 
-## Nasıl çalışır — boru hattı
+## How it works — the pipeline
 
 ```
-  Tarayıcı                         Go backend (chi)                 Yerel işleme
-  ────────                         ────────────────                 ────────────
-  🎙️ MediaRecorder ──parçalar──►  birleştir + sakla  ──────────►  🧠 whisper.cpp   (ASR, cihazda)
-     (~15–30 sn chunk)             (yerel disk)                          │
+  Browser                          Go backend (chi)                 On-device processing
+  ───────                          ────────────────                 ────────────────────
+  🎙️ MediaRecorder ──chunks────►  concatenate + store  ─────────►  🧠 whisper.cpp   (ASR, on-device)
+     (~15–30 s chunks)             (local disk)                          │
                                                                          ▼
-                                                                    📝 transkript   (cihazda)
+                                                                    📝 transcript    (on-device)
                                                                          │
                                                                          ▼
-                                   gönderim politikası  ◄──────────  🤖 Ollama       (özet, cihazda)
+                                   send policy  ◄────────────────  🤖 Ollama        (summary, on-device)
                                         │
                                         ▼
-                                   📨 e-posta (Resend)  ── dışarı çıkan tek adım ─►  alıcılar
+                                   📨 email (SMTP/Resend)  ── the only outbound step ─►  recipients
         ▲                               │
-        └──────────  ⚡ SSE canlı ilerleme  ──────────────────────────────┘
+        └──────────  ⚡ SSE live progress  ──────────────────────────────┘
 
-   ═══ cihaz sınırı: ses ve transkript bu çizgiyi geçmez ══════════════════════════
+   ═══ device boundary: audio and transcript never cross this line ═══════════════════
 ```
 
-Durdur butonuna basılınca boru hattı **elle müdahalesiz** çalışır: birleştir → ASR → özet → gönderim politikasına göre e-posta.
+When you hit stop, the pipeline runs **hands-off**: concatenate → ASR → summarize → email per the send policy.
 
 <div align="center">
-  <img src="docs/screenshot-pipeline.png" alt="Canlı ilerleme — ses birleştiriliyor, whisper.cpp · yerel, ollama · yerel adımları" width="520" />
+  <img src="docs/screenshot-pipeline.png" alt="Live progress — concatenating audio, whisper.cpp · local, ollama · local steps" width="520" />
   <br />
-  <sub><em>Canlı ilerleme (SSE). Adımlarda <strong>whisper.cpp · yerel</strong> ve <strong>ollama · yerel</strong> — ses ve transkript cihazdan çıkmadan işlenir.</em></sub>
+  <sub><em>Live progress (SSE). Steps show <strong>whisper.cpp · local</strong> and <strong>ollama · local</strong> — audio and transcript are processed without leaving the device.</em></sub>
 </div>
 
 ---
 
-## Yerel-öncelik mimarisi
+## Backend engineering
 
-Her katman için sağlayıcı `internal/providers` altında bir arayüz; **`.env`'de ilgili anahtar varsa gerçek servis, yoksa yerel ya da stub** seçilir (`main.go` karar verir). Öncelik yerelden buluta doğrudur:
+The stop button just enqueues work; the rest is driven by a small, resilient job system:
 
-| Katman | 1. tercih (yerel) | 2. tercih (bulut, opsiyonel) | Yoksa |
+- **PostgreSQL-backed job queue** — jobs are claimed **atomically with `FOR UPDATE SKIP LOCKED`**, so multiple workers can run without ever grabbing the same job (no external broker needed).
+- **Staged pipeline** — `transcribe → summarize → send` run as **separate jobs, each enqueuing the next**. A step can fail and be inspected independently; the session carries an explicit state machine.
+- **Auto-applied migrations** on startup (`backend/db/migrations`).
+- **Live progress over SSE** — the worker publishes each transition to an in-process hub that fans out to connected clients.
+- **Pluggable providers** — ASR / LLM / mail sit behind interfaces; `main.go` picks *real vs. local vs. stub* per env, logging which one is active at boot.
+
+---
+
+## Local-first architecture
+
+Each layer has a provider interface under `internal/providers`; **if the matching key is in `.env` the real service is used, otherwise a local one or a stub** (decided in `main.go`). The priority runs from local to cloud:
+
+| Layer | 1st choice (local) | 2nd choice (cloud, optional) | Otherwise |
 |---|---|---|---|
-| **ASR** (ses→metin) | **whisper.cpp** — `WHISPER_MODEL` | OpenAI Whisper — `OPENAI_API_KEY` | stub |
-| **LLM** (özet) | **Ollama** — `OLLAMA_MODEL` | Google Gemini — `GOOGLE_API_KEY` | stub |
-| **Mail** | **SMTP** (kurum içi / Mailpit) — `SMTP_HOST` | Resend — `RESEND_API_KEY` | stub (yalnızca loga yazar) |
+| **ASR** (audio→text) | **whisper.cpp** — `WHISPER_MODEL` | OpenAI Whisper — `OPENAI_API_KEY` | stub |
+| **LLM** (summary) | **Ollama** — `OLLAMA_MODEL` | Google Gemini — `GOOGLE_API_KEY` | stub |
+| **Mail** | **SMTP** (self-hosted / Mailpit) — `SMTP_HOST` | Resend — `RESEND_API_KEY` | stub (logs only) |
 
-- **whisper.cpp** — offline, API'siz, Türkçe. Ses cihazdan çıkmaz; yerel işleme olduğu için 25 MB dosya limiti yok. Kurulum: `scripts/setup_whisper.sh` (whisper-cli + ffmpeg + model).
-- **Ollama** — offline özet. Kurulum: `brew install ollama && ollama serve && ollama pull qwen2.5:7b`.
-- **SMTP** — mail doğası gereği egress'tir; ama SMTP ile veri **3. taraf SaaS yerine kurumun kendi mail sunucusundan** geçer. Geliştirme/offline demo için `docker compose up -d mailpit` (SMTP :1025, gelen kutusu http://localhost:8025) — hiçbir anahtar olmadan mail dahil tüm boru hattı offline çalışır.
-- Açılışta log her katmanın **gerçek mi / yerel mi / stub mı** çalıştığını yazar.
-
----
-
-## Teknoloji yığını
-
-- **Backend** — Go + [chi](https://github.com/go-chi/chi) router · PostgreSQL (pgx) · goroutine iş kuyruğu · SSE canlı ilerleme · ses parçaları yerel diske.
-- **Frontend** — Vue 3 + Vite + Pinia + Tailwind (mobil-first). Merkezde `useRecorder` composable: MediaRecorder + timeslice + parça yükleme + Wake Lock + sayaç. Bağımlılıksız i18n (TR/EN) — `src/i18n.js`.
-- **Altyapı** — `docker-compose.yml` ile PostgreSQL 16 (host portu **5434**).
+- **whisper.cpp** — offline, no API, Turkish. Audio never leaves the device; being local, there's no 25 MB file limit. Setup: `scripts/setup_whisper.sh` (whisper-cli + ffmpeg + model).
+- **Ollama** — offline summarization. Setup: `brew install ollama && ollama serve && ollama pull qwen2.5:7b`.
+- **SMTP** — mail is egress by nature, but with SMTP the data goes through **the organization's own mail server instead of a 3rd-party SaaS**. For dev/offline demo: `docker compose up -d mailpit` (SMTP :1025, inbox at http://localhost:8025) — with no keys at all, the whole pipeline including mail runs offline.
+- At startup the log states whether each layer is running **real / local / stub**.
 
 ---
 
-## Çalıştırma
+## Tech stack
 
-Üç terminal:
+- **Backend** — Go + [chi](https://github.com/go-chi/chi) router · PostgreSQL (pgx) · PostgreSQL-backed job queue (`FOR UPDATE SKIP LOCKED`) · staged pipeline + worker · SSE live progress · audio chunks to local disk.
+- **Frontend** — Vue 3 + Vite + Pinia + Tailwind (mobile-first). A central `useRecorder` composable: MediaRecorder + timeslice + chunked upload + Wake Lock + timer. Dependency-free i18n (TR/EN) — `src/i18n.js`.
+- **Infra** — PostgreSQL 16 via `docker-compose.yml` (host port **5434**).
+
+---
+
+## Running it
+
+Three terminals:
 
 ```bash
 # 1) Postgres
 docker compose up -d db
 
-# 2) Backend (migration'lar otomatik uygulanır)
+# 2) Backend (migrations are applied automatically)
 cd backend && go run ./cmd/server          # :8080
 
 # 3) Frontend
-cd frontend && npm install && npm run dev  # :5173 (doluysa 5174)
+cd frontend && npm install && npm run dev  # :5173 (5174 if taken)
 ```
 
-Tarayıcıda dev sunucusunun yazdığı URL'yi aç. Mikrofon izni gerekir; `getUserMedia` yalnızca **`localhost` veya HTTPS**'te çalışır.
+Open the URL the dev server prints. A microphone permission is required; `getUserMedia` only works on **`localhost` or HTTPS**.
 
-Sağlayıcı anahtarlarını `backend/.env`'e koy (`backend/.env.example` şablon). Hiç anahtar vermeden de akış uçtan uca görülebilir (whisper.cpp + Ollama yerelde, mail stub).
+Put provider keys in `backend/.env` (`backend/.env.example` is the template). Without any keys you can still see the full flow end-to-end (whisper.cpp + Ollama locally, mail stub).
 
-### Telefondan test
+### Testing from a phone
 
-Vite `host: true` ile LAN'da yayınlar; ancak telefon tarayıcıları mikrofona **yalnızca HTTPS**'te izin verir — LAN IP'si (http) yetmez. Telefon testi için bir HTTPS tüneli (Cloudflare Tunnel / ngrok) gerekir. Masaüstünde `localhost` sorunsuz çalışır.
+Vite serves on the LAN with `host: true`, but phone browsers grant mic access **only over HTTPS** — a LAN IP (http) isn't enough. Use an HTTPS tunnel (Cloudflare Tunnel / ngrok) for phone testing. On desktop, `localhost` just works.
 
-> **Not (KVKK):** İnsan sesini kaydetmek rıza gerektirir. Dağıtımda "kayıt başlıyor" bildirimi / onay akışı önerilir. Yerel-öncelik mimarisi bu yükü hafifletir: ham ses ve transkript kurum dışına çıkmaz.
+> **Note (privacy/GDPR):** Recording a person's voice requires consent. In a deployment, a "recording starting" notice / consent flow is recommended. The local-first architecture lightens this burden: raw audio and transcript never leave the organization.
 
 ---
 
-## API (özet)
+## API (overview)
 
-| Metot | Yol | Açıklama |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/api/sessions` | Geçmiş oturumları listele (en yeni önce) |
-| POST | `/api/sessions` | Oturum oluştur (başlık, alıcılar, ayarlar) |
-| POST | `/api/sessions/{id}/start` | Kaydı başlat |
-| POST | `/api/sessions/{id}/chunks?seq=N` | Ses parçası yükle (raw body) |
-| POST | `/api/sessions/{id}/finalize` | Sonlandır → boru hattını tetikle |
-| POST | `/api/sessions/{id}/cancel` | Bekleyen gönderimi iptal et (`cancel_window`) |
-| GET | `/api/sessions/{id}` | Oturum durumu |
-| GET | `/api/sessions/{id}/summary` | Özet |
-| GET | `/api/sessions/{id}/transcript` | Transkript |
-| GET | `/api/sessions/{id}/deliveries` | Gönderim logu |
-| GET | `/api/sessions/{id}/events` | SSE ilerleme akışı |
-| GET | `/api/contacts` | Kayıtlı alıcıları listele |
-| POST | `/api/contacts` | Kişi ekle/güncelle |
-| DELETE | `/api/contacts/{cid}` | Kişiyi sil |
+| GET | `/api/sessions` | List past sessions (newest first) |
+| POST | `/api/sessions` | Create a session (title, recipients, settings) |
+| POST | `/api/sessions/{id}/start` | Start recording |
+| POST | `/api/sessions/{id}/chunks?seq=N` | Upload an audio chunk (raw body) |
+| POST | `/api/sessions/{id}/finalize` | Finalize → trigger the pipeline |
+| POST | `/api/sessions/{id}/cancel` | Cancel a pending delivery (`cancel_window`) |
+| GET | `/api/sessions/{id}` | Session status |
+| GET | `/api/sessions/{id}/summary` | Summary |
+| GET | `/api/sessions/{id}/transcript` | Transcript |
+| GET | `/api/sessions/{id}/deliveries` | Delivery log |
+| GET | `/api/sessions/{id}/events` | SSE progress stream |
+| GET | `/api/contacts` | List saved recipients |
+| POST | `/api/contacts` | Add/update a contact |
+| DELETE | `/api/contacts/{cid}` | Delete a contact |
 
-Detaylı mimari, veri modeli ve alınan kararlar: [`PROJE_PLANI.md`](PROJE_PLANI.md).
-
----
-
-## Proje durumu
-
-> **Portföy / gösteri projesi.** Uçtan uca çalışır; **ses→metin ve özet tamamen yerel/offline** (whisper.cpp + Ollama) doğrulanmıştır. Kimlik doğrulama yoktur (tek-kurum/iç kullanım varsayımı).
-
-**Sıradaki adımlar:**
-- `cancel_window` UI'ı ve yeniden özetleme ("kısalt", "kararlara odaklan").
-- ASR/LLM/mail hatalarının kullanıcıya net gösterimi için UI cilası.
+Detailed architecture, data model and design decisions: [`PROJE_PLANI.md`](PROJE_PLANI.md).
 
 ---
 
-## Lisans
+## Project status
+
+> **Portfolio / demo project.** Works end-to-end; **audio→text and summarization are fully local/offline** (whisper.cpp + Ollama), verified. There is no authentication (single-organization / internal-use assumption).
+
+**Next steps:**
+- `cancel_window` UI and re-summarization ("shorten", "focus on decisions").
+- UI polish for clearly surfacing ASR/LLM/mail errors to the user.
+
+---
+
+## License
 
 [MIT](LICENSE)

@@ -1,0 +1,30 @@
+# Go
+/backend/bin/
+/backend/data/
+*.test
+
+# İndirilen ASR modelleri (büyük binary'ler — setup_whisper.sh ile indirilir)
+/backend/models/
+*.bin
+*.gguf
+
+# Yerel araç ayarları
+.claude/settings.local.json
+.idea/
+.vscode/
+
+# Env
+.env
+.env.local
+
+# Node / Vue
+node_modules/
+/frontend/dist/
+frontend/.vite/
+
+# Editör / OS
+.DS_Store
+*.log
+
+# Playwright test çıktıları
+.playwright-mcp/
